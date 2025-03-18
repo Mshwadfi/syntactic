@@ -1,87 +1,157 @@
-const { Lexer, TokenType, KEYWORDS } = require("./lexer.js");
+const { Lexer, TokenType } = require("./lexer");
+
 class Parser {
   constructor(tokens) {
     this.tokens = tokens;
     this.current = 0;
   }
-
   parse() {
     let statements = [];
-    while (this.peek().type !== TokenType.EOF) {
-      let stmt = this.parseStatement();
-      statements.push(stmt);
-
-      while (this.match(TokenType.NEWLINE)) {}
+    while (
+      this.current < this.tokens.length &&
+      this.tokens[this.current]?.type !== TokenType.EOF
+    ) {
+      const stmnt = this.parseStatement();
+      statements.push(stmnt);
     }
     return statements;
   }
 
   parseStatement() {
-    if (this.match(TokenType.IDENTIFIER)) {
-      let name = this.previous().value;
-      this.consume(TokenType.ASSIGN, "Expected = after variable declaration");
-      let value = this.parseExpression();
-      return { type: "Assignment", name, value };
+    let token = this.tokens[this.current];
+
+    //parse statement/ var declaration
+    if (token.type === TokenType.IDENTIFIER) {
+      this.current++;
+      if (this.tokens[this.current]?.type === TokenType.ASSIGN) {
+        this.current++;
+        let value = this.parseExpression();
+        return { type: "Assignment", name: token.value, value: value };
+      }
     }
-    if (this.match(TokenType.KEYWORD) && this.previous().value === "print") {
-      this.consume(TokenType.LPAREN, "expected ( after print statement");
+
+    // parse print function
+    if (token.type === TokenType.KEYWORD && token.value === "print") {
+      this.current++;
+      if (this.tokens[this.current]?.type !== TokenType.LPAREN)
+        throw new Error("Expected '(' after 'print'");
+      this.current++;
       let value = this.parseExpression();
-      this.consume(TokenType.RPAREN, "expected ) after printed value");
+      if (this.tokens[this.current]?.type !== TokenType.RPAREN) {
+        throw new Error("Expected ')' after printed value");
+      }
+      //parse if statement
+      this.current++;
       return { type: "Print", value };
     }
-    throw new Error("unexpected syntax: ", this.peek().value);
+    if (token.type === TokenType.KEYWORD && token.value === "if") {
+      return this.parseIfStatement();
+    }
+
+    //else throw syntacs error
+    throw new Error(`Unexpected syntax: ${token.value}`);
   }
 
   parseExpression() {
-    // return this.parsePrimary();
-    if (this.match(TokenType.NUMBER)) {
-      return { type: "Number", value: this.previous().value };
+    let left = this.parsePrimary();
+
+    while (
+      this.tokens[this.current]?.type === TokenType.EQUALS ||
+      this.tokens[this.current]?.type === TokenType.OPERATOR
+    ) {
+      let operator = this.tokens[this.current];
+      this.current++;
+      let right = this.parsePrimary();
+      left = {
+        type: "BinaryExpression",
+        left,
+        operator: operator.value,
+        right,
+      };
     }
-    if (this.match(TokenType.STRING)) {
-      return { type: "String", value: this.previous().value };
-    }
-    if (this.match(TokenType.IDENTIFIER)) {
-      return { type: "Variable", name: this.previous().value };
-    }
+
+    return left;
   }
 
-  match(type) {
-    if (this.check(type)) {
-      this.advance();
-      return true;
+  parsePrimary() {
+    let token = this.tokens[this.current];
+
+    if (token.type === TokenType.NUMBER) {
+      this.current++;
+      return { type: "Number", value: token.value };
     }
-    return false;
-  }
-  check(type) {
-    return this.peek().type === type;
-  }
-  peek() {
-    return this.tokens[this.current];
-  }
-  advance() {
-    return this.tokens[this.current++];
-  }
-  previous() {
-    return this.tokens[this.current - 1];
-  }
-  consume(type, message) {
-    if (this.check(type)) {
-      return this.advance();
+    if (token.type === TokenType.STRING) {
+      this.current++;
+      return { type: "String", value: token.value };
     }
-    throw new Error(message);
+    if (token.type === TokenType.IDENTIFIER) {
+      this.current++;
+      return { type: "Variable", name: token.value };
+    }
+
+    throw new Error(`Unexpected token: ${token.value}`);
+  }
+  parseIfStatement() {
+    this.current++;
+    if (this.tokens[this.current]?.type !== TokenType.LPAREN) {
+      throw new Error("Expected '(' after 'if'");
+    }
+    this.current++;
+    let condition = this.parseExpression();
+
+    if (this.tokens[this.current]?.type !== TokenType.RPAREN) {
+      throw new Error("Expected ')' after condition");
+    }
+    this.current++;
+
+    let ifBlock = this.parseBlock(); // Parse statements inside `{}`
+
+    let elseBlock = null;
+    if (
+      this.tokens[this.current]?.type === TokenType.KEYWORD &&
+      this.tokens[this.current].value === "else"
+    ) {
+      this.current++;
+      elseBlock = this.parseBlock();
+    }
+
+    return {
+      type: "IfStatement",
+      condition,
+      ifBlock,
+      elseBlock,
+    };
+  }
+
+  parseBlock() {
+    if (this.tokens[this.current]?.type !== TokenType.LPRACE) {
+      throw new Error("Expected '{' to start a block");
+    }
+    this.current++;
+
+    let statements = [];
+    while (
+      this.tokens[this.current]?.type !== TokenType.RPRACE &&
+      this.tokens[this.current]?.type !== TokenType.EOF
+    ) {
+      statements.push(this.parseStatement());
+    }
+
+    if (this.tokens[this.current]?.type !== TokenType.RPRACE) {
+      throw new Error("Expected '}' to close block");
+    }
+    this.current++;
+
+    return statements;
   }
 }
 
-module.exports = { Parser };
-// const code = `name = "Ali" age = 24`;
+// const code = `name = "muhammad Alshwadfy" age = 10 print(name) if(age == 10){print("yes")}else{print("no")}`;
 // const lexer = new Lexer(code);
-
 // const tokens = lexer.tokenize();
-// console.log("----------------------------tokens---------------------------");
 // console.log(tokens);
-
 // const parser = new Parser(tokens);
-// const ast = parser.parse();
-// console.log("----------------------------AST-----------------------------");
-// console.log(ast);
-// console.log("-----------------------------------------------------------");
+// const AST = parser.parse();
+// console.log(AST);
+
+module.exports = { Parser };
