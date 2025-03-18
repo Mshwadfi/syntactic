@@ -37,7 +37,7 @@ class Lexer {
         tokens.push(this.tokenizeString());
       } else if (/[a-zA-Z_]/.test(char)) {
         tokens.push(this.tokenizeIdentifier());
-      } else if ("+-*/=(){}".includes(char)) {
+      } else if ("+-*/=(){}<>".includes(char)) {
         tokens.push(this.tokinizeOperator());
       } else {
         this.position++;
