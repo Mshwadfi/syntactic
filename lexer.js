@@ -9,6 +9,7 @@ const TokenType = {
   LPRACE: "LPRACE",
   RPRACE: "RPRACE",
   ASSIGN: "ASSIGN",
+  EQUALS: "EQUALS",
   EOF: "EOF",
 };
 
@@ -25,6 +26,11 @@ class Lexer {
     while (this.position < this.input.length) {
       let char = this.input[this.position];
 
+      if (/\s/.test(char)) {
+        this.position++;
+        continue;
+      } // escabe spaces
+
       if (/\d/.test(char)) {
         tokens.push(this.tokenizeNumber());
       } else if (char === '"') {
@@ -32,8 +38,7 @@ class Lexer {
       } else if (/[a-zA-Z_]/.test(char)) {
         tokens.push(this.tokenizeIdentifier());
       } else if ("+-*/=(){}".includes(char)) {
-        tokens.push({ type: this.getOperatorType(char), value: char });
-        this.position++;
+        tokens.push(this.tokinizeOperator());
       } else {
         this.position++;
       }
@@ -71,6 +76,18 @@ class Lexer {
     };
   }
 
+  tokinizeOperator() {
+    let char = this.input[this.position];
+    let nextChar = this.input[this.position + 1];
+
+    if (["==", "!=", "<=", ">="].includes(char + nextChar)) {
+      this.position += 2;
+      return { type: TokenType.OPERATOR, value: char + nextChar };
+    }
+    this.position++;
+    return { type: this.getOperatorType(char), value: char };
+  }
+
   getOperatorType(char) {
     switch (char) {
       case "=":
@@ -79,20 +96,22 @@ class Lexer {
       case "-":
       case "*":
       case "/":
+      case "<":
+      case ">":
+      case "!":
         return TokenType.OPERATOR;
+      case "==":
+        return TokenType.EQUALS;
       case "(":
         return TokenType.LPAREN;
       case ")":
         return TokenType.RPAREN;
       case "{":
-        return TokenType.LBRACE;
+        return TokenType.LPRACE;
       case "}":
-        return TokenType.RBRACE;
+        return TokenType.RPRACE;
     }
   }
 }
 
-const code = `name = "Ali" age = 24`;
-const lexer = new Lexer(code);
-
-console.log(lexer.tokenize());
+module.exports = { Lexer, TokenType, KEYWORDS };
