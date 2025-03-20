@@ -1,3 +1,5 @@
+const { type } = require("os");
+
 const TokenType = {
   NUMBER: "NUMBER",
   STRING: "STRING",
@@ -10,10 +12,11 @@ const TokenType = {
   RPRACE: "RPRACE",
   ASSIGN: "ASSIGN",
   EQUALS: "EQUALS",
+  POWER: "POWER",
   EOF: "EOF",
 };
 
-const KEYWORDS = ["print", "function", "if", "else", "true", "false", "while"];
+const KEYWORDS = ["print", "if", "else", "true", "false", "while"];
 
 class Lexer {
   constructor(input) {
@@ -21,7 +24,7 @@ class Lexer {
     this.position = 0;
   }
 
-  tokenize() {
+  tokinize() {
     let tokens = [];
     while (this.position < this.input.length) {
       let char = this.input[this.position];
@@ -29,7 +32,7 @@ class Lexer {
       if (/\s/.test(char)) {
         this.position++;
         continue;
-      } // escabe spaces
+      } // escape spaces
 
       if (/\d/.test(char)) {
         tokens.push(this.tokenizeNumber());
@@ -37,8 +40,8 @@ class Lexer {
         tokens.push(this.tokenizeString());
       } else if (/[a-zA-Z_]/.test(char)) {
         tokens.push(this.tokenizeIdentifier());
-      } else if ("+-*/=(){}<>".includes(char)) {
-        tokens.push(this.tokinizeOperator());
+      } else if ("+-*/=(){}<>^,;".includes(char)) {
+        tokens.push(this.tokenizeOperator());
       } else {
         this.position++;
       }
@@ -47,18 +50,45 @@ class Lexer {
     return tokens;
   }
 
+  //tokenize numbers like 56 or 5.6
   tokenizeNumber() {
     let num = "";
-    while (/\d/.test(this.input[this.position])) {
+    let hasDecimal = false;
+
+    // Process digits before decimal point
+    while (
+      this.position < this.input.length &&
+      /\d/.test(this.input[this.position])
+    ) {
       num += this.input[this.position++];
     }
+
+    // Check for decimal dot .
+    if (
+      this.position < this.input.length &&
+      this.input[this.position] === "."
+    ) {
+      num += this.input[this.position++];
+
+      // Process digits after decimal point
+      while (
+        this.position < this.input.length &&
+        /\d/.test(this.input[this.position])
+      ) {
+        num += this.input[this.position++];
+      }
+    }
+
     return { type: TokenType.NUMBER, value: Number(num) };
   }
 
   tokenizeString() {
     this.position++;
     let str = "";
-    while (this.input[this.position] !== '"') {
+    while (
+      this.position < this.input.length &&
+      this.input[this.position] !== '"'
+    ) {
       str += this.input[this.position++];
     }
     this.position++;
@@ -67,7 +97,10 @@ class Lexer {
 
   tokenizeIdentifier() {
     let word = "";
-    while (/[a-zA-Z_]/.test(this.input[this.position])) {
+    while (
+      this.position < this.input.length &&
+      /[a-zA-Z0-9_]/.test(this.input[this.position])
+    ) {
       word += this.input[this.position++];
     }
     return {
@@ -75,19 +108,17 @@ class Lexer {
       value: word,
     };
   }
-
-  tokinizeOperator() {
+  tokenizeOperator() {
     let char = this.input[this.position];
     let nextChar = this.input[this.position + 1];
 
     if (["==", "!=", "<=", ">="].includes(char + nextChar)) {
       this.position += 2;
-      return { type: TokenType.OPERATOR, value: char + nextChar };
+      return { type: TokenType.EQUALS, value: char + nextChar };
     }
     this.position++;
     return { type: this.getOperatorType(char), value: char };
   }
-
   getOperatorType(char) {
     switch (char) {
       case "=":
@@ -100,8 +131,8 @@ class Lexer {
       case ">":
       case "!":
         return TokenType.OPERATOR;
-      case "==":
-        return TokenType.EQUALS;
+      case "^":
+        return TokenType.POWER;
       case "(":
         return TokenType.LPAREN;
       case ")":
@@ -110,6 +141,12 @@ class Lexer {
         return TokenType.LPRACE;
       case "}":
         return TokenType.RPRACE;
+      case ",":
+        return TokenType.COMMA;
+      case ";":
+        return TokenType.SEMICOLON;
+      default:
+        return TokenType.OPERATOR;
     }
   }
 }
