@@ -1,10 +1,11 @@
-const { Lexer, TokenType } = require("./lexer");
+const { TokenType } = require("./lexer");
 
 class Parser {
   constructor(tokens) {
     this.tokens = tokens;
     this.current = 0;
   }
+
   parse() {
     let statements = [];
     while (
@@ -20,17 +21,24 @@ class Parser {
   parseStatement() {
     let token = this.tokens[this.current];
 
-    //parse statement/ var declaration
+    // Parse statement/ var declaration
     if (token.type === TokenType.IDENTIFIER) {
       this.current++;
       if (this.tokens[this.current]?.type === TokenType.ASSIGN) {
         this.current++;
         let value = this.parseExpression();
         return { type: "Assignment", name: token.value, value: value };
+      } else {
+        // If not an assignment, it could be a variable in an expression
+        this.current--;
+        return {
+          type: "ExpressionStatement",
+          expression: this.parseExpression(),
+        };
       }
     }
 
-    // parse print function
+    // Parse print function
     if (token.type === TokenType.KEYWORD && token.value === "print") {
       this.current++;
       if (this.tokens[this.current]?.type !== TokenType.LPAREN)
@@ -40,32 +48,106 @@ class Parser {
       if (this.tokens[this.current]?.type !== TokenType.RPAREN) {
         throw new Error("Expected ')' after printed value");
       }
-      //parse if statement
       this.current++;
       return { type: "Print", value };
     }
+
+    // Parse if statement
     if (token.type === TokenType.KEYWORD && token.value === "if") {
       return this.parseIfStatement();
     }
 
-    //else throw syntacs error
-    throw new Error(`Unexpected syntax: ${token.value}`);
+    // Parse general expression
+    return { type: "ExpressionStatement", expression: this.parseExpression() };
   }
 
   parseExpression() {
+    return this.parseComparison();
+  }
+
+  parseComparison() {
+    let left = this.parseAdditive();
+
+    while (
+      this.current < this.tokens.length &&
+      (this.tokens[this.current]?.type === TokenType.EQUALS ||
+        (this.tokens[this.current]?.type === TokenType.OPERATOR &&
+          ["<", ">", "<=", ">="].includes(this.tokens[this.current].value)))
+    ) {
+      let operator = this.tokens[this.current].value;
+      this.current++;
+      let right = this.parseAdditive();
+      left = {
+        type: "ComparisonExpression",
+        left,
+        operator,
+        right,
+      };
+    }
+
+    return left;
+  }
+
+  parseAdditive() {
+    let left = this.parseMultiplicative();
+
+    while (
+      this.current < this.tokens.length &&
+      this.tokens[this.current]?.type === TokenType.OPERATOR &&
+      (this.tokens[this.current].value === "+" ||
+        this.tokens[this.current].value === "-")
+    ) {
+      let operator = this.tokens[this.current].value;
+      this.current++;
+      let right = this.parseMultiplicative();
+      left = {
+        type: "BinaryExpression",
+        left,
+        operator,
+        right,
+      };
+    }
+
+    return left;
+  }
+
+  parseMultiplicative() {
+    let left = this.parseExponential();
+
+    while (
+      this.current < this.tokens.length &&
+      this.tokens[this.current]?.type === TokenType.OPERATOR &&
+      (this.tokens[this.current].value === "*" ||
+        this.tokens[this.current].value === "/")
+    ) {
+      let operator = this.tokens[this.current].value;
+      this.current++;
+      let right = this.parseExponential();
+      left = {
+        type: "BinaryExpression",
+        left,
+        operator,
+        right,
+      };
+    }
+
+    return left;
+  }
+
+  parseExponential() {
     let left = this.parsePrimary();
 
     while (
-      this.tokens[this.current]?.type === TokenType.EQUALS ||
-      this.tokens[this.current]?.type === TokenType.OPERATOR
+      this.current < this.tokens.length &&
+      this.tokens[this.current]?.type === TokenType.POWER
     ) {
-      let operator = this.tokens[this.current];
+      let operator = this.tokens[this.current].value;
       this.current++;
       let right = this.parsePrimary();
       left = {
         type: "BinaryExpression",
         left,
-        operator: operator.value,
+        operator,
         right,
       };
     }
@@ -76,14 +158,30 @@ class Parser {
   parsePrimary() {
     let token = this.tokens[this.current];
 
+    // Parse parenthesized expression
+    if (token.type === TokenType.LPAREN) {
+      this.current++;
+      let expr = this.parseExpression();
+      if (this.tokens[this.current]?.type !== TokenType.RPAREN) {
+        throw new Error("Expected ')'");
+      }
+      this.current++;
+      return expr;
+    }
+
+    // Parse number literal
     if (token.type === TokenType.NUMBER) {
       this.current++;
       return { type: "Number", value: token.value };
     }
+
+    // Parse string literal
     if (token.type === TokenType.STRING) {
       this.current++;
       return { type: "String", value: token.value };
     }
+
+    // Parse variable
     if (token.type === TokenType.IDENTIFIER) {
       this.current++;
       return { type: "Variable", name: token.value };
@@ -91,6 +189,7 @@ class Parser {
 
     throw new Error(`Unexpected token: ${token.value}`);
   }
+
   parseIfStatement() {
     this.current++;
     if (this.tokens[this.current]?.type !== TokenType.LPAREN) {
@@ -108,6 +207,7 @@ class Parser {
 
     let elseBlock = null;
     if (
+      this.current < this.tokens.length &&
       this.tokens[this.current]?.type === TokenType.KEYWORD &&
       this.tokens[this.current].value === "else"
     ) {
@@ -131,6 +231,7 @@ class Parser {
 
     let statements = [];
     while (
+      this.current < this.tokens.length &&
       this.tokens[this.current]?.type !== TokenType.RPRACE &&
       this.tokens[this.current]?.type !== TokenType.EOF
     ) {
@@ -145,13 +246,5 @@ class Parser {
     return statements;
   }
 }
-
-// const code = `name = "muhammad Alshwadfy" age = 10 print(name) if(age == 10){print("yes")}else{print("no")}`;
-// const lexer = new Lexer(code);
-// const tokens = lexer.tokenize();
-// console.log(tokens);
-// const parser = new Parser(tokens);
-// const AST = parser.parse();
-// console.log(AST);
 
 module.exports = { Parser };
