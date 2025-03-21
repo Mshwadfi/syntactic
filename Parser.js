@@ -1,4 +1,4 @@
-const { TokenType } = require("./lexer");
+const { TokenType, Lexer } = require("./lexer");
 
 class Parser {
   constructor(tokens) {
@@ -57,10 +57,17 @@ class Parser {
       return this.parseIfStatement();
     }
 
+    // Parse while statement
+    if (token.type === TokenType.KEYWORD && token.value === "while") {
+      return this.parseWhileStatement();
+    }
+
     // Parse general expression
     return { type: "ExpressionStatement", expression: this.parseExpression() };
   }
 
+  // parsing highrarchy
+  // -> parseComparison -> parseAdditive (+ , -) -> parseMultiplicative (* , /) -> parseExponential (^) -> parsePrimary (())
   parseExpression() {
     return this.parseComparison();
   }
@@ -223,6 +230,28 @@ class Parser {
     };
   }
 
+  parseWhileStatement() {
+    this.current++;
+    if (this.tokens[this.current]?.type !== TokenType.LPAREN) {
+      throw new Error("Expected '(' after 'while'");
+    }
+    this.current++;
+    let condition = this.parseExpression();
+
+    if (this.tokens[this.current]?.type !== TokenType.RPAREN) {
+      throw new Error("Expected ')' after while condition");
+    }
+    this.current++;
+
+    let body = this.parseBlock(); // Parse statements inside `{}`
+
+    return {
+      type: "WhileStatement",
+      condition,
+      body,
+    };
+  }
+
   parseBlock() {
     if (this.tokens[this.current]?.type !== TokenType.LPRACE) {
       throw new Error("Expected '{' to start a block");
@@ -246,5 +275,24 @@ class Parser {
     return statements;
   }
 }
+
+const code = `x = 10
+y = 10*(3^4)
+print(x)
+print(y)
+if (y > x) {
+  print("true")
+}
+while(x < 15){
+  print("salam")
+  x = x + 1
+}`;
+
+const lexer = new Lexer(code);
+const tokens = lexer.tokenize();
+const parser = new Parser(tokens);
+const AST = parser.parse();
+console.log(tokens);
+console.log(AST);
 
 module.exports = { Parser };
