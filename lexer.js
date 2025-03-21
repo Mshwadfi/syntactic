@@ -13,10 +13,23 @@ const TokenType = {
   ASSIGN: "ASSIGN",
   EQUALS: "EQUALS",
   POWER: "POWER",
+  LBRACKET: "LBRACKET",
+  RBRACKET: "RBRACKET",
+  DOT: "DOT",
   EOF: "EOF",
 };
 
-const KEYWORDS = ["print", "if", "else", "true", "false", "while"];
+const KEYWORDS = [
+  "print",
+  "if",
+  "else",
+  "true",
+  "false",
+  "while",
+  "push",
+  "pop",
+  "length",
+];
 
 class Lexer {
   constructor(input) {
@@ -24,7 +37,7 @@ class Lexer {
     this.position = 0;
   }
 
-  tokinize() {
+  tokenize() {
     let tokens = [];
     while (this.position < this.input.length) {
       let char = this.input[this.position];
@@ -145,6 +158,12 @@ class Lexer {
         return TokenType.COMMA;
       case ";":
         return TokenType.SEMICOLON;
+      case "[":
+        return TokenType.LBRACKET;
+      case "]":
+        return TokenType.RBRACKET;
+      case ".":
+        return TokenType.DOT;
       default:
         return TokenType.OPERATOR;
     }
