@@ -10,15 +10,18 @@ const TokenType = {
   RPAREN: "RPAREN",
   LPRACE: "LPRACE",
   RPRACE: "RPRACE",
+  LBRACKET: "LBRACKET", // Added for array syntax [...]
+  RBRACKET: "RBRACKET", // Added for array syntax [...]
   ASSIGN: "ASSIGN",
   EQUALS: "EQUALS",
   POWER: "POWER",
-  LBRACKET: "LBRACKET",
-  RBRACKET: "RBRACKET",
-  DOT: "DOT",
+  COMMA: "COMMA", // Needed for array elements separation
+  SEMICOLON: "SEMICOLON", // For statement termination if needed
+  DOT: "DOT", // For method access (e.g., arr.push)
   EOF: "EOF",
 };
 
+// Add array-related keywords
 const KEYWORDS = [
   "print",
   "if",
@@ -29,6 +32,7 @@ const KEYWORDS = [
   "push",
   "pop",
   "length",
+  "join",
 ];
 
 class Lexer {
@@ -53,7 +57,8 @@ class Lexer {
         tokens.push(this.tokenizeString());
       } else if (/[a-zA-Z_]/.test(char)) {
         tokens.push(this.tokenizeIdentifier());
-      } else if ("+-*/=(){}<>^,;".includes(char)) {
+      } else if ("+-*/=(){}<>^,;.[]".includes(char)) {
+        // Added . and [] for arrays
         tokens.push(this.tokenizeOperator());
       } else {
         this.position++;
@@ -121,6 +126,7 @@ class Lexer {
       value: word,
     };
   }
+
   tokenizeOperator() {
     let char = this.input[this.position];
     let nextChar = this.input[this.position + 1];
@@ -132,6 +138,7 @@ class Lexer {
     this.position++;
     return { type: this.getOperatorType(char), value: char };
   }
+
   getOperatorType(char) {
     switch (char) {
       case "=":
@@ -154,14 +161,14 @@ class Lexer {
         return TokenType.LPRACE;
       case "}":
         return TokenType.RPRACE;
-      case ",":
-        return TokenType.COMMA;
-      case ";":
-        return TokenType.SEMICOLON;
       case "[":
         return TokenType.LBRACKET;
       case "]":
         return TokenType.RBRACKET;
+      case ",":
+        return TokenType.COMMA;
+      case ";":
+        return TokenType.SEMICOLON;
       case ".":
         return TokenType.DOT;
       default:
