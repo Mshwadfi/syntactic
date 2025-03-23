@@ -1,5 +1,34 @@
 const { type } = require("os");
 
+// we want to tokenize the code like this
+// code (input):
+// x = 10
+// if(x > 0){
+//   print("true")
+// }
+
+// tokens(output):
+// [
+//   { type: 'IDENTIFIER', value: 'x' },
+//   { type: 'ASSIGN', value: '=' },
+//   { type: 'NUMBER', value: 10 },
+//   { type: 'KEYWORD', value: 'if' },
+//   { type: 'LPAREN', value: '(' },
+//   { type: 'IDENTIFIER', value: 'x' },
+//   { type: 'OPERATOR', value: '>' },
+//   { type: 'NUMBER', value: 0 },
+//   { type: 'RPAREN', value: ')' },
+//   { type: 'LPRACE', value: '{' },
+//   { type: 'KEYWORD', value: 'print' },
+//   { type: 'LPAREN', value: '(' },
+//   { type: 'STRING', value: 'true' },
+//   { type: 'RPAREN', value: ')' },
+//   { type: 'RPRACE', value: '}' },
+//   { type: 'EOF' }
+// ]
+
+// language token types
+
 const TokenType = {
   NUMBER: "NUMBER",
   STRING: "STRING",
@@ -10,18 +39,19 @@ const TokenType = {
   RPAREN: "RPAREN",
   LPRACE: "LPRACE",
   RPRACE: "RPRACE",
-  LBRACKET: "LBRACKET", // Added for array syntax [...]
-  RBRACKET: "RBRACKET", // Added for array syntax [...]
+  LBRACKET: "LBRACKET",
+  RBRACKET: "RBRACKET",
   ASSIGN: "ASSIGN",
   EQUALS: "EQUALS",
   POWER: "POWER",
-  COMMA: "COMMA", // Needed for array elements separation
-  SEMICOLON: "SEMICOLON", // For statement termination if needed
-  DOT: "DOT", // For method access (e.g., arr.push)
+  COMMA: "COMMA",
+  SEMICOLON: "SEMICOLON",
+  DOT: "DOT",
+  RETURN: "RETURN",
   EOF: "EOF",
 };
 
-// Add array-related keywords
+// language keywords
 const KEYWORDS = [
   "print",
   "if",
@@ -33,6 +63,8 @@ const KEYWORDS = [
   "pop",
   "length",
   "join",
+  "return",
+  "function",
 ];
 
 class Lexer {
@@ -58,7 +90,6 @@ class Lexer {
       } else if (/[a-zA-Z_]/.test(char)) {
         tokens.push(this.tokenizeIdentifier());
       } else if ("+-*/=(){}<>^,;.[]".includes(char)) {
-        // Added . and [] for arrays
         tokens.push(this.tokenizeOperator());
       } else {
         this.position++;
@@ -121,6 +152,12 @@ class Lexer {
     ) {
       word += this.input[this.position++];
     }
+
+    // check for 'return' keyword
+    if (word === "return") {
+      return { type: TokenType.RETURN, value: word };
+    }
+
     return {
       type: KEYWORDS.includes(word) ? TokenType.KEYWORD : TokenType.IDENTIFIER,
       value: word,
