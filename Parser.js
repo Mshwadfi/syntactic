@@ -1,5 +1,47 @@
 const { TokenType, Lexer } = require("./lexer");
 
+// here we will take tokens as input and provide the AST
+// tokens(input):
+// [
+//   { type: 'IDENTIFIER', value: 'x' },
+//   { type: 'ASSIGN', value: '=' },
+//   { type: 'NUMBER', value: 10 },
+//   { type: 'KEYWORD', value: 'if' },
+//   { type: 'LPAREN', value: '(' },
+//   { type: 'IDENTIFIER', value: 'x' },
+//   { type: 'OPERATOR', value: '>' },
+//   { type: 'NUMBER', value: 0 },
+//   { type: 'RPAREN', value: ')' },
+//   { type: 'LPRACE', value: '{' },
+//   { type: 'KEYWORD', value: 'print' },
+//   { type: 'LPAREN', value: '(' },
+//   { type: 'STRING', value: 'true' },
+//   { type: 'RPAREN', value: ')' },
+//   { type: 'RPRACE', value: '}' },
+//   { type: 'EOF' }
+// ]
+
+// ---------------------------------------------------
+// AST (output):
+// [
+//   {
+//     type: 'Assignment',
+//     name: 'x',
+//     value: { type: 'Number', value: 10 }
+//   },
+//   {
+//     type: 'IfStatement',
+//     condition: {
+//       type: 'ComparisonExpression',
+//       left: [Object],
+//       operator: '>',
+//       right: [Object]
+//     },
+//     ifBlock: [ [Object] ],
+//     elseBlock: null
+//   }
+// ]
+
 class Parser {
   constructor(tokens) {
     this.tokens = tokens;
@@ -21,19 +63,35 @@ class Parser {
   parseStatement() {
     let token = this.tokens[this.current];
 
+    // Parse return statement
+    if (token.type === TokenType.RETURN) {
+      return this.parseReturnStatement();
+    }
+
+    // Parse function declaration for syntax function add (x,y){...}
+    if (token.type === TokenType.KEYWORD && token.value === "function") {
+      return this.parseFunctionDeclaration();
+    }
+
     // Parse statement/ var declaration
     if (token.type === TokenType.IDENTIFIER) {
       this.current++;
 
+      // Check for function declaration: add(x,y){...} syntax without function keyword
+      if (this.tokens[this.current]?.type === TokenType.LPAREN) {
+        this.current--;
+        return this.parseFunctionDeclaration();
+      }
+
       // Handle array element assignment: arr[index] = value
       if (this.tokens[this.current]?.type === TokenType.LBRACKET) {
-        this.current--; // Go back to identifier
+        this.current--;
         return this.parseArrayElementAssignment();
       }
 
       // Handle array method call: arr.push(value)
       if (this.tokens[this.current]?.type === TokenType.DOT) {
-        this.current--; // Go back to identifier
+        this.current--;
         return this.parseArrayMethodCall();
       }
 
@@ -80,27 +138,121 @@ class Parser {
     return { type: "ExpressionStatement", expression: this.parseExpression() };
   }
 
+  parseReturnStatement() {
+    this.current++; // skip'return'
+
+    // Check if there's an expression after 'return'
+    let value = null;
+    if (
+      this.current < this.tokens.length &&
+      this.tokens[this.current]?.type !== TokenType.RPRACE &&
+      this.tokens[this.current]?.type !== TokenType.SEMICOLON
+    ) {
+      value = this.parseExpression();
+    }
+
+    // Skip semicolon
+    if (
+      this.current < this.tokens.length &&
+      this.tokens[this.current]?.type === TokenType.SEMICOLON
+    ) {
+      this.current++;
+    }
+
+    return { type: "ReturnStatement", value };
+  }
+
+  parseFunctionDeclaration() {
+    // syntax: add(x,y){...} or function add(x,y){...}
+
+    // Handle optional 'function' keyword
+    if (
+      this.tokens[this.current]?.type === TokenType.KEYWORD &&
+      this.tokens[this.current].value === "function"
+    ) {
+      this.current++; // Skip 'function' keyword
+    }
+
+    // Get function name
+    if (this.tokens[this.current]?.type !== TokenType.IDENTIFIER) {
+      throw new Error("Expected function name");
+    }
+
+    const name = this.tokens[this.current].value;
+    this.current++; // skip function name
+
+    // Parse parameters
+    if (this.tokens[this.current]?.type !== TokenType.LPAREN) {
+      throw new Error("Expected '(' after function name");
+    }
+    this.current++; // skip '('
+
+    const params = [];
+
+    // Check for parameters
+    if (this.tokens[this.current]?.type !== TokenType.RPAREN) {
+      // Parse first parameter without leading comma ","
+      if (this.tokens[this.current]?.type !== TokenType.IDENTIFIER) {
+        throw new Error("Expected parameter name");
+      }
+
+      params.push(this.tokens[this.current].value);
+      this.current++; // skip parameter name
+
+      // Parse additional parameters
+      while (this.tokens[this.current]?.type === TokenType.COMMA) {
+        this.current++; // skip ','
+
+        if (this.tokens[this.current]?.type !== TokenType.IDENTIFIER) {
+          throw new Error("Expected parameter name after ','");
+        }
+
+        params.push(this.tokens[this.current].value);
+        this.current++; // skip parameter name
+      }
+    }
+
+    if (this.tokens[this.current]?.type !== TokenType.RPAREN) {
+      throw new Error("Expected ')' after parameters");
+    }
+    this.current++; // skip ')'
+
+    // Parse function body
+    if (this.tokens[this.current]?.type !== TokenType.LPRACE) {
+      throw new Error("Expected '{' to start function body");
+    }
+
+    const body = this.parseBlock();
+
+    return {
+      type: "FunctionDeclaration",
+      name: name,
+      params: params,
+      body: body,
+    };
+  }
+
   parseArrayElementAssignment() {
-    // Format: arr[index] = value
+    // syntax: arr[index] = value
     const varName = this.tokens[this.current].value;
-    this.current++; // Move past identifier
+    this.current++; // skip identifier
 
     if (this.tokens[this.current]?.type !== TokenType.LBRACKET) {
       throw new Error("Expected '[' in array element access");
     }
-    this.current++; // Move past '['
+    this.current++; // skip '['
 
     const index = this.parseExpression();
 
     if (this.tokens[this.current]?.type !== TokenType.RBRACKET) {
       throw new Error("Expected ']' after array index");
     }
-    this.current++; // Move past ']'
+    this.current++; // skip ']'
 
     if (this.tokens[this.current]?.type !== TokenType.ASSIGN) {
       throw new Error("Expected '=' in array element assignment");
     }
-    this.current++; // Move past '='
+    this.current++; // skip '='
 
     const value = this.parseExpression();
 
@@ -113,26 +265,26 @@ class Parser {
   }
 
   parseArrayMethodCall() {
-    // Format: arr.method(args)
+    // syntax: arr.method(args)
     const array = this.tokens[this.current].value;
-    this.current++; // Move past array identifier
+    this.current++; // skip array identifier
 
     if (this.tokens[this.current]?.type !== TokenType.DOT) {
       throw new Error("Expected '.' in method call");
     }
-    this.current++; // Move past '.'
+    this.current++; // skip '.'
 
     if (this.tokens[this.current]?.type !== TokenType.KEYWORD) {
       throw new Error("Expected method name after '.'");
     }
 
     const method = this.tokens[this.current].value;
-    this.current++; // Move past method name
+    this.current++; // skip method name
 
     if (this.tokens[this.current]?.type !== TokenType.LPAREN) {
       throw new Error("Expected '(' after method name");
     }
-    this.current++; // Move past '('
+    this.current++; // skip '('
 
     // Parse arguments
     const args = [];
@@ -141,7 +293,7 @@ class Parser {
 
       // Parse additional arguments separated by commas
       while (this.tokens[this.current]?.type === TokenType.COMMA) {
-        this.current++; // Move past ','
+        this.current++; // skip ','
         args.push(this.parseExpression());
       }
     }
@@ -149,7 +301,7 @@ class Parser {
     if (this.tokens[this.current]?.type !== TokenType.RPAREN) {
       throw new Error("Expected ')' after method arguments");
     }
-    this.current++; // Move past ')'
+    this.current++; // skip ')'
 
     return {
       type: "ArrayMethodCall",
@@ -284,6 +436,14 @@ class Parser {
         return this.parseArrayMethodExpression(varName);
       }
 
+      // Check if this is a function call
+      if (
+        this.current < this.tokens.length &&
+        this.tokens[this.current]?.type === TokenType.LPAREN
+      ) {
+        return this.parseFunctionCall(varName);
+      }
+
       // Otherwise, it's a regular variable
       return { type: "Variable", name: varName };
     }
@@ -314,14 +474,39 @@ class Parser {
     throw new Error(`Unexpected token: ${token.value}`);
   }
 
+  parseFunctionCall(functionName) {
+    this.current++; // skip '('
+
+    const args = [];
+    if (this.tokens[this.current]?.type !== TokenType.RPAREN) {
+      args.push(this.parseExpression());
+
+      while (this.tokens[this.current]?.type === TokenType.COMMA) {
+        this.current++; // skip ','
+        args.push(this.parseExpression());
+      }
+    }
+
+    if (this.tokens[this.current]?.type !== TokenType.RPAREN) {
+      throw new Error("Expected ')' after function arguments");
+    }
+    this.current++; // skip ')'
+
+    return {
+      type: "FunctionCall",
+      name: functionName,
+      args: args,
+    };
+  }
+
   parseArrayLiteral() {
-    this.current++; // Move past '['
+    this.current++; // skip '['
 
     const elements = [];
 
     // Check for empty array
     if (this.tokens[this.current]?.type === TokenType.RBRACKET) {
-      this.current++; // Move past ']'
+      this.current++; // skip ']'
       return { type: "ArrayLiteral", elements: elements };
     }
 
@@ -330,31 +515,31 @@ class Parser {
 
     // Parse remaining elements
     while (this.tokens[this.current]?.type === TokenType.COMMA) {
-      this.current++; // Move past ','
+      this.current++; // skip ','
       elements.push(this.parseExpression());
     }
 
     if (this.tokens[this.current]?.type !== TokenType.RBRACKET) {
       throw new Error("Expected ']' to close array literal");
     }
-    this.current++; // Move past ']'
+    this.current++; // skip ']'
 
     return { type: "ArrayLiteral", elements: elements };
   }
 
   parseArrayElementAccess(arrayName) {
-    // Format: arr[index]
+    // syntax: arr[index]
     if (this.tokens[this.current]?.type !== TokenType.LBRACKET) {
       throw new Error("Expected '[' in array element access");
     }
-    this.current++; // Move past '['
+    this.current++; // skip '['
 
     const index = this.parseExpression();
 
     if (this.tokens[this.current]?.type !== TokenType.RBRACKET) {
       throw new Error("Expected ']' after array index");
     }
-    this.current++; // Move past ']'
+    this.current++; // skip ']'
 
     return {
       type: "ArrayElementAccess",
@@ -364,20 +549,20 @@ class Parser {
   }
 
   parseArrayMethodExpression(arrayName) {
-    // Format: arr.method() as an expression
+    // syntax: arr.method() as an expression
     if (this.tokens[this.current]?.type !== TokenType.DOT) {
       throw new Error("Expected '.' in method call");
     }
-    this.current++; // Move past '.'
+    this.current++; // skip '.'
 
     if (this.tokens[this.current]?.type !== TokenType.KEYWORD) {
       throw new Error("Expected method name after '.'");
     }
 
     const method = this.tokens[this.current].value;
-    this.current++; // Move past method name
+    this.current++; // skip method name
 
-    // Special case for array.length property (not a method call)
+    // Special case for array.length property (not a method call) , like js syntax
     if (
       method === "length" &&
       this.tokens[this.current]?.type !== TokenType.LPAREN
@@ -392,7 +577,7 @@ class Parser {
     if (this.tokens[this.current]?.type !== TokenType.LPAREN) {
       throw new Error("Expected '(' after method name");
     }
-    this.current++; // Move past '('
+    this.current++; // skip '('
 
     // Parse arguments
     const args = [];
@@ -401,7 +586,7 @@ class Parser {
 
       // Parse additional arguments separated by commas
       while (this.tokens[this.current]?.type === TokenType.COMMA) {
-        this.current++; // Move past ','
+        this.current++; // skip ','
         args.push(this.parseExpression());
       }
     }
@@ -409,7 +594,7 @@ class Parser {
     if (this.tokens[this.current]?.type !== TokenType.RPAREN) {
       throw new Error("Expected ')' after method arguments");
     }
-    this.current++; // Move past ')'
+    this.current++; // skip ')'
 
     return {
       type: "ArrayMethodExpression",
@@ -499,26 +684,11 @@ class Parser {
 }
 
 const code = `x = 10
-y = 10*(3^4)
-print(x)
-print(y)
-if (y > x) {
+if(x > 0){
   print("true")
-}
-while(x < 15){
-  print("salam")
-  x = x + 1
-}
-  arr = [12,13]
-  arr.push(1)
-  arr.pop(12)
-  `;
-
-// const lexer = new Lexer(code);
-// const tokens = lexer.tokenize();
-// const parser = new Parser(tokens);
-// const AST = parser.parse();
-// console.log(tokens);
-// console.log(AST);
-
+}`;
+const lexer = new Lexer(code);
+const tokens = lexer.tokenize();
+const parser = new Parser(tokens);
+console.log(parser.parse());
 module.exports = { Parser };
