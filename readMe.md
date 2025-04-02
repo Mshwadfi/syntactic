@@ -8,13 +8,13 @@ Syntactic is a simple programming language designed for educational purposes. Th
 
 When writing code, the text goes through several stages before becoming executable machine code. The image below illustrates the transformation from source code to executable code:
 
-![[Pasted image 20250402142132.png]]
+![Compilation Process Overview](https://examradar.com/wp-content/uploads/2016/10/EXECUTION-OF-A-C-PROGRAM.png.webp)
 
 This project focuses specifically on the compilation phase, which itself consists of several stages.
 
 ## Compiler Phases
 
-![[Pasted image 20250402142219.png]]
+![Compiler Phases](https://cdn1.byjus.com/wp-content/uploads/2022/03/phase-of-compiler.png)
 
 ### 1. Lexical Analysis (Lexer)
 
